@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicador de Marca de Agua</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        .dropzone {
+    position: relative; /* Necesario para posicionar los pseudoelementos */
+    border: 2px dashed #6366f1;
+    transition: all 0.3s;
+}
+
+.dropzone.drag-over {
+    border-color: #4f46e5;
+    background-color: #eef2ff;
+}
+
+/* Esquinas superiores */
+.dropzone::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border-top: 3px solid #ef4444; /* Rojo */
+    border-left: 3px solid #ef4444; /* Rojo */
+}
+
+.dropzone::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    border-top: 3px solid #3b82f6; /* Azul */
+    border-right: 3px solid #3b82f6; /* Azul */
+}
+
+/* Esquinas inferiores */
+.dropzone .corner-bottom-left {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border-bottom: 3px solid #3b82f6; /* Azul */
+    border-left: 3px solid #3b82f6; /* Azul */
+}
+
+.dropzone .corner-bottom-right {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    border-bottom: 3px solid #ef4444; /* Rojo */
+    border-right: 3px solid #ef4444; /* Rojo */
+}
+
+.watermark-preview {
+    position: absolute;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <img src="Imagenes/Logo Remax 2mil-horz.png" alt="Logo de la aplicación: Aplicador de Marca de Agua con diseño moderno en azul y blanco" class="mx-auto w-full max-w-md mb-4" />
+            <h1 class="text-3xl font-bold text-indigo-700 mb-2">Aplicador de Marca de Agua</h1>
+            <p class="text-gray-600">Protege tus imágenes añadiendo tu marca personal</p>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- Panel de carga -->
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">1. Sube tus imágenes</h2>
+                    <div id="dropzone" class="dropzone rounded-lg p-6 text-center cursor-pointer mb-4">
+                        <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2e236643-a90a-457c-b97b-3f36eb586360.png" alt="Icono de carga de archivos: carpeta con flecha hacia arriba sobre fondo claro" class="mx-auto h-20 mb-3" />
+                        <p class="text-gray-600">Arrastra tus imágenes aquí o haz clic para seleccionar</p>
+                        <p class="text-sm text-gray-500 mt-1">Máximo 22 imágenes (JPEG, PNG, WEBP)</p>
+                        <input type="file" id="fileInput" class="hidden" accept="image/jpeg,image/png,image/webp" multiple>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-medium">Imágenes seleccionadas:</span>
+                            <span id="fileCount" class="text-indigo-600 font-bold">0</span>
+                        </div>
+                        <div id="fileList" class="max-h-40 overflow-y-auto text-sm">
+                            <!-- Este apartado especificamente se va a mostrar en filas las imagenes que se van a montar -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuración de marca de agua -->
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">2. Configura la marca de agua</h2>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 mb-2">Tipo de marca:</label>
+                        <div class="flex gap-4 mb-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="watermarkType" value="text" checked class="mr-2">
+                                <span>Texto</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="watermarkType" value="image" class="mr-2">
+                                <span>Imagen</span>
+                            </label>
+                        </div>
+
+                        <!-- Configuración de marca de agua de texto -->
+                        <div id="textWatermarkConfig">
+                            <div class="mb-4">
+                                <label class="block text-gray-700 mb-1">Texto:</label>
+                                <input type="text" id="watermarkText" placeholder="Tu marca" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-gray-700 mb-1">Color:</label>
+                                    <input type="color" id="textColor" value="#ffffff" class="w-full h-10">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 mb-1">Opacidad:</label>
+                                    <input type="range" id="textOpacity" min="0.1" max="1" step="0.1" value="0.7" class="w-full">
+                                    <span id="opacityValue" class="text-xs text-gray-500">70%</span>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 mb-1">Tamaño:</label>
+                                <input type="range" id="textSize" min="10" max="72" value="24" class="w-full">
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 mb-1">Posición:</label>
+                                <select id="textPosition" class="w-full px-3 py-2 border rounded-lg">
+                                    <option value="center">Centro</option>
+                                    <option value="top-left">Esquina superior izquierda</option>
+                                    <option value="top-right">Esquina superior derecha</option>
+                                    <option value="bottom-left">Esquina inferior izquierda</option>
+                                    <option value="bottom-right" selected>Esquina inferior derecha</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de marca de agua de imagen -->
+                        <div id="imageWatermarkConfig" class="hidden">
+                            <div class="mb-4">
+                                <label class="block text-gray-700 mb-1">Sube tu marca de agua:</label>
+                                <input type="file" id="watermarkImageInput" accept="image/*" class="w-full px-3 py-2 border rounded-lg">
+                                <p class="text-xs text-gray-500 mt-1">Selecciona una imagen PNG transparente para mejores resultados</p>
+                            </div>
+                            <div id="watermarkImagePreviewContainer" class="hidden mb-4 text-center">
+                                <p class="text-sm font-medium text-gray-700 mb-2">Vista previa de tu marca:</p>
+                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/bd4c59c8-5cc8-453b-8c69-25e10d91d04e.png" alt="Tu marca de agua personalizada" 
+                                     id="watermarkImagePreview" class="max-w-full h-24 mx-auto border border-dashed border-gray-300 object-contain" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-gray-700 mb-1">Opacidad:</label>
+                                    <input type="range" id="imageOpacity" min="0.1" max="1" step="0.1" value="0.7" class="w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 mb-1">Escala:</label>
+                                    <input type="range" id="imageScale" min="10" max="100" value="20" class="w-full">
+                                    <span id="scaleValue" class="text-xs text-gray-500">20%</span>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 mb-1">Posición:</label>
+                                <select id="imagePosition" class="w-full px-3 py-2 border rounded-lg">
+                                    <option value="center">Centro</option>
+                                    <option value="top-left">Esquina superior izquierda</option>
+                                    <option value="top-right">Esquina superior derecha</option>
+                                    <option value="bottom-left">Esquina inferior izquierda</option>
+                                    <option value="bottom-right" selected>Esquina inferior derecha</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Previsualización -->
+            <div class="mt-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">3. Vista previa</h2>
+                <div class="bg-gray-100 p-4 rounded-lg relative" style="min-height: 300px;">
+                    <div class="flex justify-center items-center h-full">
+                        <div id="previewContainer" class="relative">
+                            <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/b109aef4-a8e6-4480-8a2b-28d18d0030f5.png" alt="Imagen de ejemplo para previsualizar la marca de agua: paisaje natural genérico" 
+                                 id="previewImage" class="max-w-full h-64 mx-auto" />
+                            <canvas id="previewCanvas" class="hidden"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+                <button id="applyPreviewBtn" class="px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition">
+                    Probar en vista previa
+                </button>
+                <button id="processAllBtn" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition" disabled>
+                    Procesar todas las imágenes
+                </button>
+                <button id="downloadBtn" class="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition hidden">
+                    Descargar imágenes (ZIP)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center py-6 text-gray-500 text-sm">
+        <p>Aplicación para agregar marcas de agua a tus imágenes - Todos los derechos reservados</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos del DOM
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            const fileList = document.getElementById('fileList');
+            const fileCount = document.getElementById('fileCount');
+            const applyPreviewBtn = document.getElementById('applyPreviewBtn');
+            const processAllBtn = document.getElementById('processAllBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const watermarkTypeRadios = document.querySelectorAll('input[name="watermarkType"]');
+            const textWatermarkConfig = document.getElementById('textWatermarkConfig');
+            const imageWatermarkConfig = document.getElementById('imageWatermarkConfig');
+            const previewImage = document.getElementById('previewImage');
+            const previewCanvas = document.getElementById('previewCanvas');
+            const textOpacity = document.getElementById('textOpacity');
+            const opacityValue = document.getElementById('opacityValue');
+            const imageScale = document.getElementById('imageScale');
+            const scaleValue = document.getElementById('scaleValue');
+            const watermarkImageInput = document.getElementById('watermarkImageInput');
+            const watermarkImagePreview = document.getElementById('watermarkImagePreview');
+            const watermarkImagePreviewContainer = document.getElementById('watermarkImagePreviewContainer');
+            
+            // Variables de estado
+            let files = [];
+            let processedImages = []; 
+            let watermarkImage = null;
+
+            // Event listeners para el tipo de marca de agua
+            watermarkTypeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'text') {
+                        textWatermarkConfig.classList.remove('hidden');
+                        imageWatermarkConfig.classList.add('hidden');
+                    } else {
+                        textWatermarkConfig.classList.add('hidden');
+                        imageWatermarkConfig.classList.remove('hidden');
+                    }
+                });
+            });
+
+            // Actualizar valores de los sliders
+            textOpacity.addEventListener('input', function() {
+                opacityValue.textContent = Math.round(this.value * 100) + '%';
+            });
+
+            imageScale.addEventListener('input', function() {
+                scaleValue.textContent = this.value + '%';
+            });
+
+            // Previsualizar imagen de marca de agua
+            watermarkImageInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    watermarkImagePreview.src = event.target.result;
+                    watermarkImagePreviewContainer.classList.remove('hidden');
+                    watermarkImage = new Image();
+                    watermarkImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Manejar arrastrar y soltar
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                dropzone.classList.add('drag-over');
+            }
+
+            function unhighlight() {
+                dropzone.classList.remove('drag-over');
+            }
+
+            dropzone.addEventListener('drop', handleDrop, false);
+            dropzone.addEventListener('click', () => fileInput.click(), false);
+            fileInput.addEventListener('change', handleFiles, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const droppedFiles = dt.files;
+                handleFileSelection(droppedFiles);
+            }
+
+            function handleFiles(e) {
+                handleFileSelection(e.target.files);
+                fileInput.value = ''; // Resetear para poder seleccionar los mismos archivos otra vez
+            }
+
+            function handleFileSelection(selectedFiles) {
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                files = Array.from(selectedFiles)
+                    .filter(file => allowedTypes.includes(file.type))
+                    .slice(0, 22); // Limitar a 22 imágenes
+
+                fileCount.textContent = files.length;
+                
+                // Actualizar lista de archivos
+                fileList.innerHTML = '';
+                files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center py-1 px-2 hover:bg-gray-200 rounded';
+                    div.innerHTML = `
+                        <span class="truncate">${file.name}</span>
+                        <span class="text-xs text-gray-500">${(file.size / 1024).toFixed(1)} KB</span>
+                    `;
+                    fileList.appendChild(div);
+                });
+
+                // Habilitar/deshabilitar botones
+                processAllBtn.disabled = files.length === 0;
+                
+                // Si hay archivos, usar el primero para previsualización
+                if (files.length > 0) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImage.src = e.target.result;
+                    };
+                    reader.readAsDataURL(files[0]);
+                } else {
+                    previewImage.src = 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/3e2e5787-4358-451f-b373-1069635f45d0.png';
+                }
+            }
+
+            // Aplicar marca de agua a la previsualización
+            applyPreviewBtn.addEventListener('click', applyWatermarkToPreview);
+
+            async function applyWatermarkToPreview() {
+                if (files.length === 0) {
+                    alert('Por favor, sube al menos una imagen primero.');
+                    return;
+                }
+
+                const type = document.querySelector('input[name="watermarkType"]:checked').value;
+                const position = type === 'text' 
+                    ? document.getElementById('textPosition').value 
+                    : document.getElementById('imagePosition').value;
+
+                try {
+                    const watermarkedDataUrl = await applyWatermark(previewImage.src, type, position);
+                    
+                    // Mostrar resultado en el canvas
+                    const tempImg = new Image();
+                    tempImg.onload = function() {
+                        previewCanvas.width = tempImg.width;
+                        previewCanvas.height = tempImg.height;
+                        const ctx = previewCanvas.getContext('2d');
+                        ctx.drawImage(tempImg, 0, 0);
+                        
+                        previewImage.classList.add('hidden');
+                        previewCanvas.classList.remove('hidden');
+                    };
+                    tempImg.src = watermarkedDataUrl;
+                    
+                } catch (error) {
+                    console.error('Error al aplicar la marca de agua:', error);
+                    alert('Ocurrió un error al aplicar la marca de agua.');
+                }
+            }
+
+            // Procesar todas las imágenes
+            processAllBtn.addEventListener('click', async function() {
+                if (files.length === 0) {
+                    alert('Por favor, sube al menos una imagen primero.');
+                    return;
+                }
+
+                processAllBtn.disabled = true;
+                processAllBtn.textContent = 'Procesando...';
+                
+                const type = document.querySelector('input[name="watermarkType"]:checked').value;
+                const position = type === 'text' 
+                    ? document.getElementById('textPosition').value 
+                    : document.getElementById('imagePosition').value;
+
+                processedImages = [];
+
+                try {
+                    // Procesar cada imagen en serie para no saturar
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        const reader = new FileReader();
+                        
+                        const result = await new Promise((resolve) => {
+                            reader.onload = async function(e) {
+                                try {
+                                    const watermarkedDataUrl = await applyWatermark(e.target.result, type, position);
+                                    resolve({
+                                        name: file.name,
+                                        dataUrl: watermarkedDataUrl
+                                    });
+                                } catch (error) {
+                                    console.error('Error procesando imagen:', file.name, error);
+                                    resolve(null);
+                                }
+                            };
+                            reader.readAsDataURL(file);
+                        });
+
+                        if (result) {
+                            processedImages.push(result);
+                        }
+                    }
+
+                    if (processedImages.length > 0) {
+                        downloadBtn.classList.remove('hidden');
+                        alert(`¡Listo! Se procesaron ${processedImages.length} imágenes correctamente.`);
+                    } else {
+                        alert('No se pudo procesar ninguna imagen. Por favor, intenta de nuevo.');
+                    }
+
+                } catch (error) {
+                    console.error('Error al procesar imágenes:', error);
+                    alert('Ocurrió un error al procesar las imágenes.');
+                } finally {
+                    processAllBtn.disabled = false;
+                    processAllBtn.textContent = 'Procesar todas las imágenes';
+                }
+            });
+
+            // Descargar las imágenes procesadas
+            downloadBtn.addEventListener('click', function() {
+                if (processedImages.length === 0) {
+                    alert('No hay imágenes procesadas para descargar.');
+                    return;
+                }
+
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'Creando ZIP...';
+                
+                const zip = new JSZip();
+                const imgFolder = zip.folder("imagenes-con-marca-de-agua");
+                let processedCount = 0;
+                
+                processedImages.forEach(img => {
+                    const base64Data = img.dataUrl.replace(/^data:image\/(png|jpeg);base64,/, "");
+                    const extension = img.name.split('.').pop().toLowerCase();
+                    const mimeType = extension === 'png' ? 'image/png' : 'image/jpeg';
+                    
+                    imgFolder.file(img.name, base64Data, { base64: true });
+                    processedCount++;
+                });
+
+                if (processedCount === processedImages.length) {
+                    zip.generateAsync({ type: "blob" }).then(function(content) {
+                        saveAs(content, "imagenes-con-marca-de-agua.zip");
+                        downloadBtn.disabled = false;
+                        downloadBtn.textContent = 'Descargar imágenes (ZIP)';
+                    });
+                }
+            });
+
+            // Función principal para aplicar la marca de agua
+            async function applyWatermark(imageSrc, type, position) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Dibujar la imagen original
+                        ctx.drawImage(img, 0, 0);
+                        
+                        if (type === 'text') {
+                            // Aplicar marca de agua de texto
+                            applyTextWatermark(ctx, img.width, img.height);
+                        } else {
+                            // Aplicar marca de agua de imagen
+                            if (!watermarkImage) {
+                                reject('Por favor, sube primero tu imagen de marca de agua.');
+                                return;
+                            }
+                            applyImageWatermark(ctx, img.width, img.height);
+                        }
+                        
+                        resolve(canvas.toDataURL('image/jpeg', 0.9));
+                    };
+                    img.onerror = () => reject('Error al cargar la imagen');
+                    img.src = imageSrc;
+                });
+            }
+
+            function applyTextWatermark(ctx, imgWidth, imgHeight) {
+                const text = document.getElementById('watermarkText').value || 'Marca de agua';
+                const color = document.getElementById('textColor').value;
+                const opacity = parseFloat(document.getElementById('textOpacity').value);
+                const size = parseInt(document.getElementById('textSize').value);
+                const position = document.getElementById('textPosition').value;
+                
+                ctx.font = `bold ${size}px Arial`;
+                ctx.fillStyle = color;
+                ctx.globalAlpha = opacity;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                let x, y;
+                
+                switch(position) {
+                    case 'top-left':
+                        x = imgWidth * 0.2;
+                        y = imgHeight * 0.15;
+                        ctx.textAlign = 'left';
+                        break;
+                    case 'top-right':
+                        x = imgWidth * 0.8;
+                        y = imgHeight * 0.15;
+                        ctx.textAlign = 'right';
+                        break;
+                    case 'bottom-left':
+                        x = imgWidth * 0.2;
+                        y = imgHeight * 0.85;
+                        ctx.textAlign = 'left';
+                        break;
+                    case 'bottom-right':
+                        x = imgWidth * 0.8;
+                        y = imgHeight * 0.85;
+                        ctx.textAlign = 'right';
+                        break;
+                    default: // center
+                        x = imgWidth / 2;
+                        y = imgHeight / 2;
+                }
+                
+                // Añadir sombra para mejor legibilidad
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                ctx.shadowBlur = 3;
+                
+                ctx.fillText(text, x, y);
+                
+                // Resetear estilos
+                ctx.globalAlpha = 1.0;
+                ctx.shadowColor = 'transparent';
+            }
+
+            function applyImageWatermark(ctx, imgWidth, imgHeight) {
+                const opacity = parseFloat(document.getElementById('imageOpacity').value);
+                const scale = parseInt(document.getElementById('imageScale').value) / 100;
+                const position = document.getElementById('imagePosition').value;
+                
+                const watermarkWidth = watermarkImage.width * scale;
+                const watermarkHeight = watermarkImage.height * scale;
+                
+                let x, y;
+                
+                switch(position) {
+                    case 'top-left':
+                        x = imgWidth * 0.05;
+                        y = imgHeight * 0.05;
+                        break;
+                    case 'top-right':
+                        x = imgWidth - watermarkWidth - (imgWidth * 0.05);
+                        y = imgHeight * 0.05;
+                        break;
+                    case 'bottom-left':
+                        x = imgWidth * 0.05;
+                        y = imgHeight - watermarkHeight - (imgHeight * 0.05);
+                        break;
+                    case 'bottom-right':
+                        x = imgWidth - watermarkWidth - (imgWidth * 0.05);
+                        y = imgHeight - watermarkHeight - (imgHeight * 0.05);
+                        break;
+                    default: // center
+                        x = (imgWidth - watermarkWidth) / 2;
+                        y = (imgHeight - watermarkHeight) / 2;
+                }
+                
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(watermarkImage, x, y, watermarkWidth, watermarkHeight);
+                ctx.globalAlpha = 1.0;
+            }
+        });
+    </script>
+</body>
+</html>
+
